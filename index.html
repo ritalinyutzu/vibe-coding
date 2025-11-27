@@ -80,6 +80,25 @@
                     🎨 上傳圖片
                 </label>
                 <img id="preview-image" class="hidden rounded-lg max-h-20 mx-auto">
+                
+                <!-- 3D 旋轉控制 -->
+                <div class="space-y-2 mt-2" id="rotation-section" style="display: none;">
+                    <select id="rotation-axis" class="w-full px-3 py-2 bg-gray-700 text-white rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                        <option value="y">🔄 繞Y軸旋轉（左右翻轉）</option>
+                        <option value="x">🔄 繞X軸旋轉（上下翻轉）</option>
+                        <option value="z">🔄 繞Z軸旋轉（平面旋轉）</option>
+                    </select>
+                    
+                    <div class="control-group">
+                        <label class="block text-xs font-medium text-gray-300">旋轉速度</label>
+                        <input type="range" min="0.1" max="5" step="0.1" value="1" id="rotation-speed" class="w-full">
+                    </div>
+                    
+                    <label class="flex items-center space-x-2 text-xs">
+                        <input type="checkbox" id="enable-3d-rotation" class="rounded" checked>
+                        <span class="text-gray-300">播放時自動旋轉</span>
+                    </label>
+                </div>
             </div>
 
             <!-- 視覺風格 -->
@@ -103,22 +122,43 @@
 
             <!-- 參數 -->
             <div class="space-y-2 pt-2 border-t border-gray-700">
-                <h2 class="text-sm font-semibold text-gray-200">⚙️ 參數</h2>
+                <h2 class="text-sm font-semibold text-gray-200">⚙️ 參數調整</h2>
+                <p class="text-xs text-gray-400 italic">💡 调整这些參數會改變視覺效果強度和速度</p>
+                
                 <div class="control-group">
-                    <label class="block text-xs font-medium text-gray-300">節拍</label>
-                    <input type="range" min="1" max="100" value="75" id="range-beat">
+                    <label class="block text-xs font-medium text-gray-300">
+                        🎯 節拍敏感度: <span id="beat-value">75</span>%
+                    </label>
+                    <input type="range" min="1" max="100" value="75" id="range-beat" 
+                           oninput="document.getElementById('beat-value').textContent = this.value">
+                    <p class="text-xs text-gray-500 mt-1">越高 = 視覺化反應越強</p>
                 </div>
+
                 <div class="control-group">
-                    <label class="block text-xs font-medium text-gray-300">顏色</label>
-                    <input type="range" min="1" max="100" value="45" id="range-frequency">
+                    <label class="block text-xs font-medium text-gray-300">
+                        🌈 顏色飽和度: <span id="frequency-value">45</span>%
+                    </label>
+                    <input type="range" min="1" max="100" value="45" id="range-frequency"
+                           oninput="document.getElementById('frequency-value').textContent = this.value">
+                    <p class="text-xs text-gray-500 mt-1">越高 = 顏色越鮮豔</p>
                 </div>
+                
                 <div class="control-group">
-                    <label class="block text-xs font-medium text-gray-300">密度</label>
-                    <input type="range" min="1" max="100" value="90" id="range-intensity">
+                    <label class="block text-xs font-medium text-gray-300">
+                        💥 效果強度: <span id="intensity-value">90</span>%
+                    </label>
+                    <input type="range" min="1" max="100" value="90" id="range-intensity"
+                           oninput="document.getElementById('intensity-value').textContent = this.value">
+                    <p class="text-xs text-gray-500 mt-1">越高 = 效果越明顯</p>
                 </div>
+                
                 <div class="control-group">
-                    <label class="block text-xs font-medium text-gray-300">速度</label>
-                    <input type="range" min="1" max="100" value="60" id="range-speed">
+                    <label class="block text-xs font-medium text-gray-300">
+                        ⚡ 動畫速度: <span id="speed-value">60</span>%
+                    </label>
+                    <input type="range" min="1" max="100" value="60" id="range-speed"
+                           oninput="document.getElementById('speed-value').textContent = this.value">
+                    <p class="text-xs text-gray-500 mt-1">越高 = 動畫越快</p>
                 </div>
             </div>
 
@@ -152,6 +192,15 @@
         let isPlaying = false;
         let currentPreset = 'neon';
         let uploadedImage = null;
+        let imageRotation = 0;
+        let autoRotate = false;
+        let autoRotateSpeed = 0.5;
+        
+        // 3D 圖片對象
+        let imageMesh = null;
+        let rotationAxis = 'y';
+        let rotationSpeed = 1;
+        let enable3DRotation = true;
 
         // ═══ 事件綁定 ═══
         document.getElementById('music-input').addEventListener('change', handleMusicSelect);
@@ -184,12 +233,52 @@
                         uploadedImage = img;
                         document.getElementById('preview-image').src = img.src;
                         document.getElementById('preview-image').classList.remove('hidden');
-                        updateSceneWithImage();
+                        document.getElementById('rotation-section').style.display = 'block';
+                        create3DImageMesh(img);
                     };
                     img.src = event.target.result;
                 };
                 reader.readAsDataURL(files[0]);
             }
+        }
+
+        // ═══ 創建 3D 圖片網格 ═══
+        function create3DImageMesh(img) {
+            // 移除舊的網格
+            if (imageMesh) {
+                scene.remove(imageMesh);
+                imageMesh.geometry.dispose();
+                imageMesh.material.dispose();
+            }
+
+            // 創建紋理
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 使圖片適應畫布尺寸
+            const aspectRatio = img.width / img.height;
+            if (aspectRatio > 1) {
+                canvas.width = 1024;
+                canvas.height = Math.floor(1024 / aspectRatio);
+            } else {
+                canvas.height = 1024;
+                canvas.width = Math.floor(1024 * aspectRatio);
+            }
+            
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            // 創建平面幾何體
+            const geometry = new THREE.PlaneGeometry(2, 2 * (canvas.height / canvas.width));
+            const material = new THREE.MeshStandardMaterial({
+                map: texture,
+                emissive: 0x404040,
+                emissiveIntensity: 0.5
+            });
+            
+            imageMesh = new THREE.Mesh(geometry, material);
+            imageMesh.position.z = 0;
+            scene.add(imageMesh);
         }
 
         // ═══ 音訊分析 ═══
@@ -206,8 +295,17 @@
         }
 
         function getAudioData() {
+            // 讀取參數值
+            const beatControl = parseFloat(document.getElementById('range-beat').value) / 100;
+            const frequencyControl = parseFloat(document.getElementById('range-frequency').value) / 100;
+            const intensityControl = parseFloat(document.getElementById('range-intensity').value) / 100;
+            const speedControl = parseFloat(document.getElementById('range-speed').value) / 100;
+
             if (!analyser || !isPlaying) {
-                return { beat: 0, mid: 0, high: 0, intensity: 0, data: new Uint8Array(128) };
+                return { 
+                    beat: 0, mid: 0, high: 0, intensity: 0, data: new Uint8Array(128),
+                    beatControl, frequencyControl, intensityControl, speedControl
+                };
             }
 
             analyser.getByteFrequencyData(dataArray);
@@ -217,18 +315,18 @@
             const midEnd = Math.floor(dataArray.length * 0.4);
             
             for (let i = 0; i < lowEnd; i++) beat += dataArray[i];
-            beat = beat / lowEnd / 255;
+            beat = (beat / lowEnd / 255) * beatControl;
 
             for (let i = lowEnd; i < midEnd; i++) mid += dataArray[i];
-            mid = mid / (midEnd - lowEnd) / 255;
+            mid = (mid / (midEnd - lowEnd) / 255) * beatControl;
 
             for (let i = midEnd; i < dataArray.length; i++) high += dataArray[i];
-            high = high / (dataArray.length - midEnd) / 255;
+            high = (high / (dataArray.length - midEnd) / 255) * frequencyControl;
 
             for (let i = 0; i < dataArray.length; i++) intensity += dataArray[i];
-            intensity = intensity / dataArray.length / 255;
+            intensity = (intensity / dataArray.length / 255) * intensityControl;
 
-            return { beat, mid, high, intensity, data: dataArray };
+            return { beat, mid, high, intensity, data: dataArray, beatControl, frequencyControl, intensityControl, speedControl };
         }
 
         // ═══ 播放控制 ═══
@@ -326,38 +424,30 @@
             
             if (presetSetups[preset]) {
                 presetSetups[preset]();
-                if (is3D) updateSceneWithImage();
+                // 如果有上傳圖片，重新添加到場景
+                if (imageMesh && is3D) {
+                    scene.add(imageMesh);
+                }
             }
         }
 
-        function updateSceneWithImage() {
-            if (!uploadedImage) return;
-            const canvas = document.createElement('canvas');
-            canvas.width = canvas3D.clientWidth;
-            canvas.height = canvas3D.clientHeight;
-            const ctx = canvas.getContext('2d');
-            
-            const imgAspect = uploadedImage.width / uploadedImage.height;
-            const canvasAspect = canvas.width / canvas.height;
-            
-            let drawWidth, drawHeight, drawX, drawY;
-            if (imgAspect > canvasAspect) {
-                drawHeight = canvas.height;
-                drawWidth = drawHeight * imgAspect;
-                drawX = (canvas.width - drawWidth) / 2;
-                drawY = 0;
-            } else {
-                drawWidth = canvas.width;
-                drawHeight = drawWidth / imgAspect;
-                drawX = 0;
-                drawY = (canvas.height - drawHeight) / 2;
-            }
-            
-            ctx.globalAlpha = 0.3;
-            ctx.drawImage(uploadedImage, drawX, drawY, drawWidth, drawHeight);
-            
-            const texture = new THREE.CanvasTexture(canvas);
-            scene.background = texture;
+        // ═══ 設置 3D 旋轉控制 ═══
+        function setupRotationControls() {
+            const rotationAxisSelect = document.getElementById('rotation-axis');
+            const rotationSpeedSlider = document.getElementById('rotation-speed');
+            const enable3DRotationCheckbox = document.getElementById('enable-3d-rotation');
+
+            rotationAxisSelect.addEventListener('change', (e) => {
+                rotationAxis = e.target.value;
+            });
+
+            rotationSpeedSlider.addEventListener('input', (e) => {
+                rotationSpeed = parseFloat(e.target.value);
+            });
+
+            enable3DRotationCheckbox.addEventListener('change', (e) => {
+                enable3DRotation = e.target.checked;
+            });
         }
 
         // ═══ 所有視覺風格 ═══
@@ -378,9 +468,13 @@
             }
         }
         function updateNeon(audioData) {
+            const speedMultiplier = audioData.speedControl || 1;
             scene.children.forEach((line, i) => {
                 const hue = (audioData.high + i * 0.1 + Date.now() / 10000) % 1;
-                line.material.color.setHSL(hue, 1, 0.5);
+                line.material.color.setHSL(hue, 1, 0.5 + audioData.intensity);
+                if (Math.random() > 0.9 * (1 - audioData.beat * 0.5)) {
+                    line.position.x = (Math.random() - 0.5) * 0.3 * audioData.beat;
+                }
             });
         }
 
@@ -397,12 +491,13 @@
         }
         function updateLiquid(audioData) {
             if (liquidMesh) {
-                liquidMesh.rotation.x += audioData.beat * 0.05;
-                liquidMesh.rotation.y += audioData.mid * 0.05;
-                liquidMesh.scale.setScalar(1.2 + audioData.beat * 0.5);
+                const speedMult = audioData.speedControl || 1;
+                liquidMesh.rotation.x += audioData.beat * 0.05 * speedMult;
+                liquidMesh.rotation.y += audioData.mid * 0.05 * speedMult;
+                liquidMesh.scale.setScalar(1.2 + audioData.beat * audioData.intensityControl * 0.5);
                 const hue = (audioData.mid + Date.now() / 3000) % 1;
-                liquidMesh.material.color.setHSL(hue, 1, 0.5);
-                liquidMesh.material.emissiveIntensity = 0.5 + audioData.intensity * 0.8;
+                liquidMesh.material.color.setHSL(hue, audioData.frequencyControl, 0.5 + audioData.intensity);
+                liquidMesh.material.emissiveIntensity = 0.5 + audioData.beat * audioData.intensityControl;
             }
         }
 
@@ -427,15 +522,16 @@
             }
         }
         function updateGeometric(audioData) {
+            const speedMult = audioData.speedControl || 1;
             scene.children.forEach((mesh, i) => {
-                const radius = mesh.userData.baseRadius + audioData.beat * 0.8;
+                const radius = mesh.userData.baseRadius + audioData.beat * audioData.intensityControl * 0.8;
                 mesh.position.x = Math.cos(mesh.userData.angle) * radius;
                 mesh.position.y = Math.sin(mesh.userData.angle) * radius;
-                mesh.rotation.x += audioData.high * 0.08;
-                mesh.rotation.y += audioData.high * 0.08;
-                const hue = (mesh.userData.hueOffset + audioData.high * 0.5 + Date.now() / 4000) % 1;
-                mesh.material.color.setHSL(hue, 1, 0.6);
-                mesh.material.emissiveIntensity = 0.6 + audioData.beat * 0.6;
+                mesh.rotation.x += audioData.high * 0.08 * speedMult;
+                mesh.rotation.y += audioData.high * 0.08 * speedMult;
+                const hue = (mesh.userData.hueOffset + audioData.high * audioData.frequencyControl * 0.5 + Date.now() / 4000) % 1;
+                mesh.material.color.setHSL(hue, audioData.frequencyControl, 0.6);
+                mesh.material.emissiveIntensity = 0.6 + audioData.beat * audioData.intensityControl * 0.6;
             });
         }
 
@@ -467,16 +563,17 @@
         }
         function updateParticle(audioData) {
             if (particleSystem) {
+                const speedMult = audioData.speedControl || 1;
                 const pos = particleSystem.geometry.attributes.position.array;
                 for (let i = 0; i < pos.length; i += 3) {
-                    pos[i] += (Math.random() - 0.5) * audioData.intensity * 0.2;
+                    pos[i] += (Math.random() - 0.5) * audioData.intensityControl * 0.2;
                     pos[i + 1] += (Math.random() - 0.5) * audioData.beat * 0.15;
                     if (Math.abs(pos[i]) > 3) pos[i] = (Math.random() - 0.5) * 6;
                     if (Math.abs(pos[i + 1]) > 3) pos[i + 1] = (Math.random() - 0.5) * 6;
                 }
                 particleSystem.geometry.attributes.position.needsUpdate = true;
-                particleSystem.rotation.x += audioData.beat * 0.01;
-                particleSystem.rotation.y += audioData.beat * 0.01;
+                particleSystem.rotation.x += audioData.beat * 0.01 * speedMult;
+                particleSystem.rotation.y += audioData.beat * 0.01 * speedMult;
             }
         }
 
@@ -503,10 +600,10 @@
             scene.children.forEach((mesh) => {
                 const idx = Math.floor(mesh.userData.spectrumIndex * audioData.data.length / 32);
                 const val = audioData.data[idx] / 255;
-                mesh.scale.y = 0.5 + val * 1.5;
+                mesh.scale.y = 0.5 + val * audioData.intensityControl * 1.5;
                 const hue = (mesh.userData.hueOffset + Date.now() / 5000) % 1;
-                mesh.material.color.setHSL(hue, 1, 0.5 + val * 0.3);
-                mesh.material.emissiveIntensity = 0.6 + val * 0.6;
+                mesh.material.color.setHSL(hue, audioData.frequencyControl, 0.5 + val * 0.3);
+                mesh.material.emissiveIntensity = 0.6 + val * audioData.intensityControl * 0.6;
             });
         }
 
@@ -526,18 +623,18 @@
             if (rippleMesh) {
                 const pos = rippleMesh.geometry.attributes.position.array;
                 const orig = rippleMesh.userData.originalPos;
-                const time = Date.now() * 0.001;
+                const time = Date.now() * 0.001 * (audioData.speedControl || 1);
                 
                 for (let i = 2; i < pos.length; i += 3) {
                     const x = orig[i - 2];
                     const y = orig[i - 1];
                     const dist = Math.sqrt(x * x + y * y);
-                    pos[i] = Math.sin(dist * 10 - time * 5) * (0.3 + audioData.beat * 0.8);
+                    pos[i] = Math.sin(dist * 10 - time * 5) * (0.3 + audioData.beat * audioData.intensityControl * 0.8);
                 }
                 rippleMesh.geometry.attributes.position.needsUpdate = true;
                 const hue = (audioData.beat * 0.5 + Date.now() / 4000) % 1;
-                rippleMesh.material.color.setHSL(hue, 1, 0.5);
-                rippleMesh.material.emissiveIntensity = 0.5 + audioData.intensity * 0.5;
+                rippleMesh.material.color.setHSL(hue, audioData.frequencyControl, 0.5);
+                rippleMesh.material.emissiveIntensity = 0.5 + audioData.intensityControl * 0.5;
             }
         }
 
@@ -567,13 +664,14 @@
             }
         }
         function updateSpiral(audioData) {
+            const speedMult = audioData.speedControl || 1;
             scene.children.forEach((mesh) => {
-                mesh.rotation.x += audioData.high * 0.05;
-                mesh.rotation.y += audioData.beat * 0.05;
-                mesh.scale.setScalar(1 + audioData.beat * 0.3);
-                const hue = (mesh.userData.hueOffset + Date.now() / 3000 + audioData.intensity * 0.5) % 1;
-                mesh.material.color.setHSL(hue, 1, 0.6);
-                mesh.material.emissiveIntensity = 0.6 + audioData.beat * 0.6;
+                mesh.rotation.x += audioData.high * 0.05 * speedMult;
+                mesh.rotation.y += audioData.beat * 0.05 * speedMult;
+                mesh.scale.setScalar(1 + audioData.beat * audioData.intensityControl * 0.3);
+                const hue = (mesh.userData.hueOffset + Date.now() / 3000 + audioData.intensityControl * 0.5) % 1;
+                mesh.material.color.setHSL(hue, audioData.frequencyControl, 0.6);
+                mesh.material.emissiveIntensity = 0.6 + audioData.beat * audioData.intensityControl * 0.6;
             });
         }
 
@@ -595,12 +693,13 @@
             }
         }
         function updateTrail(audioData) {
+            const speedMult = audioData.speedControl || 1;
             scene.children.forEach((mesh, i) => {
-                mesh.rotation.z += audioData.beat * 0.05;
-                mesh.scale.setScalar(1 + audioData.beat * 0.4);
-                const hue = (i / 5 + Date.now() / 3000 + audioData.beat * 0.3) % 1;
-                mesh.material.color.setHSL(hue, 1, 0.6);
-                mesh.material.emissiveIntensity = 0.7 + audioData.intensity * 0.5;
+                mesh.rotation.z += audioData.beat * 0.05 * speedMult;
+                mesh.scale.setScalar(1 + audioData.beat * audioData.intensityControl * 0.4);
+                const hue = (i / 5 + Date.now() / 3000 + audioData.beat * audioData.frequencyControl * 0.3) % 1;
+                mesh.material.color.setHSL(hue, audioData.frequencyControl, 0.6);
+                mesh.material.emissiveIntensity = 0.7 + audioData.intensityControl * audioData.intensityControl * 0.5;
             });
         }
 
@@ -628,12 +727,16 @@
             }
         }
         function updateTunnel(audioData) {
+            const speedMult = audioData.speedControl || 1;
             scene.children.forEach((mesh) => {
-                mesh.position.z += 0.08 + audioData.beat * 0.05;
+                mesh.position.z += (0.08 + audioData.beat * 0.05) * speedMult;
                 if (mesh.position.z > 1) {
                     mesh.position.z = -3 + mesh.userData.layer * 0.7;
                 }
-                mesh.scale.setScalar(1 + audioData.beat * 0.4 + audioData.intensity * 0.2);
+                mesh.scale.setScalar(1 + audioData.beat * 0.4 + audioData.intensityControl * 0.2);
+                const hue = (mesh.userData.layer / 10 + Date.now() / 4000 + audioData.high * audioData.frequencyControl * 0.3) % 1;
+                mesh.material.color.setHSL(hue, audioData.frequencyControl, 0.6);
+                mesh.material.emissiveIntensity = 0.7 + audioData.intensityControl * 0.5;
             });
         }
 
@@ -644,8 +747,8 @@
 
             const w = canvas2D.width;
             const h = canvas2D.height;
-            const scale = 0.5 + audioData.intensity * 2;
-            const centerX = 0.5 + audioData.high * 0.3;
+            const scale = 0.5 + audioData.intensityControl * 2;
+            const centerX = 0.5 + audioData.high * audioData.frequencyControl * 0.3;
 
             for (let x = 0; x < w; x += 4) {
                 for (let y = 0; y < h; y += 4) {
@@ -662,8 +765,8 @@
                         real = temp;
                         iter++;
                     }
-                    const hue = (iter / 50 + Date.now() / 5000) % 1;
-                    const rgb = hslToRgb(hue, 1, 0.5);
+                    const hue = (iter / 50 + Date.now() / 5000 + audioData.frequencyControl * 0.5) % 1;
+                    const rgb = hslToRgb(hue, audioData.frequencyControl, 0.5);
                     ctx2D.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
                     ctx2D.fillRect(x, y, 4, 4);
                 }
@@ -675,7 +778,7 @@
             ctx2D.fillStyle = '#0a0a0a';
             ctx2D.fillRect(0, 0, canvas2D.width, canvas2D.height);
 
-            const time = Date.now() * 0.001;
+            const time = Date.now() * 0.001 * (audioData.speedControl || 1);
             const w = canvas2D.width;
             const h = canvas2D.height;
 
@@ -683,10 +786,10 @@
                 for (let y = 0; y < h; y += 4) {
                     const v = Math.sin((x + time * 100) * 0.01) +
                              Math.sin((y + time * 50) * 0.01) +
-                             Math.sin(Math.sqrt(x * x + y * y) * 0.01 + time * 50) * audioData.beat;
+                             Math.sin(Math.sqrt(x * x + y * y) * 0.01 + time * 50) * audioData.beat * audioData.intensityControl;
 
-                    const hue = (v * 0.3 + audioData.high + Date.now() / 5000) % 1;
-                    const rgb = hslToRgb(hue, 1, 0.5);
+                    const hue = (v * audioData.frequencyControl * 0.3 + audioData.high + Date.now() / 5000) % 1;
+                    const rgb = hslToRgb(hue, audioData.frequencyControl, 0.5);
                     ctx2D.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
                     ctx2D.fillRect(x, y, 4, 4);
                 }
@@ -712,20 +815,20 @@
             const x = (w - uploadedImage.width * scale) / 2;
             const y = (h - uploadedImage.height * scale) / 2;
 
-            ctx2D.globalAlpha = 0.9 + audioData.intensity * 0.1;
+            ctx2D.globalAlpha = 0.9 + audioData.intensityControl * 0.1;
             ctx2D.drawImage(uploadedImage, x, y, uploadedImage.width * scale, uploadedImage.height * scale);
             ctx2D.globalAlpha = 1;
 
-            const waveCount = 2 + Math.floor(audioData.intensity * 4);
+            const waveCount = 2 + Math.floor(audioData.intensityControl * 4);
             for (let waveIdx = 0; waveIdx < waveCount; waveIdx++) {
                 const waveOffset = waveIdx * 0.4;
-                ctx2D.strokeStyle = `hsl(${(audioData.beat * 360 + audioData.high * 180 + waveIdx * 60) % 360}, 100%, ${60 + audioData.intensity * 20}%)`;
+                ctx2D.strokeStyle = `hsl(${(audioData.beat * 360 + audioData.high * audioData.frequencyControl * 180 + waveIdx * 60) % 360}, ${audioData.frequencyControl * 100}%, ${60 + audioData.intensityControl * 20}%)`;
                 ctx2D.lineWidth = 1 + audioData.beat * 3;
                 ctx2D.globalAlpha = 0.7 - waveIdx * 0.15;
                 
                 ctx2D.beginPath();
                 for (let px = -50; px <= w + 50; px += 5) {
-                    const py = h / 2 + Math.sin((px * 0.008 + Date.now() * 0.0008 + waveOffset) * 8) * audioData.beat * 120;
+                    const py = h / 2 + Math.sin((px * 0.008 + Date.now() * 0.0008 + waveOffset) * 8) * audioData.beat * audioData.intensityControl * 120;
                     px === -50 ? ctx2D.moveTo(px, py) : ctx2D.lineTo(px, py);
                 }
                 ctx2D.stroke();
@@ -760,6 +863,18 @@
         function animate() {
             requestAnimationFrame(animate);
 
+            // 3D 圖片旋轉
+            if (imageMesh && enable3DRotation && isPlaying) {
+                const speedMult = (parseFloat(document.getElementById('range-speed').value) / 100) || 1;
+                if (rotationAxis === 'x') {
+                    imageMesh.rotation.x += rotationSpeed * 0.03 * speedMult;
+                } else if (rotationAxis === 'y') {
+                    imageMesh.rotation.y += rotationSpeed * 0.03 * speedMult;
+                } else if (rotationAxis === 'z') {
+                    imageMesh.rotation.z += rotationSpeed * 0.03 * speedMult;
+                }
+            }
+
             const audioData = getAudioData();
 
             if (presetUpdates[currentPreset]) {
@@ -776,6 +891,7 @@
             initThree();
             setupNeon();
             updateSceneWithImage();
+            setupRotationControls();
             animate();
             updatePlayButtonState();
         });
