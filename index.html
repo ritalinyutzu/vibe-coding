@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>共感工作室 - 音樂視覺化</title>
+    <title>共感工作室</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -87,7 +87,7 @@
                 
                 <!-- 方式1: Spotify 鏈接 -->
                 <div class="space-y-2 bg-section p-3 rounded-lg">
-                    <label class="text-xs font-medium text-green-600">方式1️⃣ - Spotify 鏈接</label>
+                    <label class="text-xs font-medium text-green-600">方式1️⃣ - Spotify 鏈接（用於播放）</label>
                     <input type="text" id="spotify-link-input" placeholder="貼上 Spotify 歌曲鏈接..." 
                            class="w-full px-3 py-2 bg-white border border-gray-300 text-gray-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-500">
                     <p class="text-xs text-gray-600 italic">💡 例如：https://open.spotify.com/track/...</p>
@@ -100,13 +100,14 @@
 
                 <!-- 方式2: 本地音樂 -->
                 <div class="space-y-2 bg-section p-3 rounded-lg">
-                    <label class="text-xs font-medium text-blue-600">方式2️⃣ - 本地音樂（用於音頻分析）</label>
+                    <label class="text-xs font-medium text-blue-600">⚠️ 關鍵步驟 - 上傳本地音樂（用於視覺化分析）</label>
+                    <p class="text-xs text-red-600 font-bold">必須上傳本地音樂檔案才能看到視覺化效果！</p>
                     <input type="file" id="music-input" accept="audio/*" class="hidden">
                     <label for="music-input" class="cursor-pointer block text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
-                        📤 上傳音樂檔案 (MP3/WAV)
+                        📤 上傳同一首歌的音樂檔案 (MP3/WAV)
                     </label>
                     <p id="music-name" class="text-xs text-gray-600">未選擇</p>
-                    <p class="text-xs text-gray-500 italic">💡 提示：上傳本地音樂來驅動視覺化效果</p>
+                    <p class="text-xs text-gray-500 italic">💡 上傳後會無聲播放，用來驅動視覺化效果</p>
                     <audio id="audio-player"></audio>
                 </div>
             </div>
@@ -115,8 +116,9 @@
             <div class="space-y-2 bg-section p-3 rounded-lg">
                 <label class="text-xs font-medium text-gray-800">⏯️ 播放控制</label>
                 <button id="play-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
-                    ▶️ 開始播放
+                    ▶️ 等待本地音樂上傳
                 </button>
+                <p class="text-xs text-gray-600 mt-2 italic">💡 上傳本地音樂後會自動播放</p>
             </div>
 
             <!-- 圖片 & 旋轉 -->
@@ -135,7 +137,7 @@
                     <select id="rotation-axis" class="w-full px-2 py-1 bg-white border border-gray-300 text-gray-800 rounded text-xs">
                         <option value="none">❌ 不旋轉</option>
                         <option value="x">↑↓ 繞X軸旋轉</option>
-                        <option value="y" selected>←→ 繞Y軸旋轉</option>
+                        <option value="y" selected>←→ 繞Y軸旋轉（迷因貓貓）</option>
                         <option value="z">↻ 繞Z軸旋轉</option>
                     </select>
                     
@@ -788,9 +790,23 @@
 
             const url = URL.createObjectURL(file);
             audioPlayer.src = url;
+            audioPlayer.volume = 0; // 設定為靜音（只用於分析）
             document.getElementById('music-name').textContent = `✅ 已選擇: ${file.name}`;
 
             setupAudioAnalysis();
+            
+            // 自動播放以驅動視覺化（靜音狀態）
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            audioPlayer.play();
+            isPlaying = true;
+            updatePlayButtonState();
+            
+            // 提示用戶
+            const status = document.getElementById('spotify-status');
+            status.textContent = '✅ 本地音樂已載入！正在無聲播放以驅動視覺化。在 Spotify 播放器中播放同一首歌。';
+            status.classList.remove('hidden');
         }
 
         function handleImageSelect(event) {
@@ -810,12 +826,16 @@
         }
 
         function togglePlayback() {
+            // 如果沒有上傳本地音樂，提示用戶
             if (!audioPlayer.src) {
-                document.getElementById('play-btn').textContent = "❌ 請先上傳音樂";
-                setTimeout(() => updatePlayButtonState(), 1500);
+                const status = document.getElementById('spotify-status');
+                status.textContent = "❌ 請先上傳本地音樂檔案";
+                status.classList.remove('hidden');
+                setTimeout(() => status.classList.add('hidden'), 2000);
                 return;
             }
 
+            // 有本地音樂時，只是切換暫停/繼續
             if (isPlaying) {
                 audioPlayer.pause();
                 isPlaying = false;
@@ -830,14 +850,25 @@
         }
 
         function updatePlayButtonState() {
+            const btn = document.getElementById('play-btn');
+            
+            // 如果沒有上傳本地音樂
+            if (!audioPlayer.src) {
+                btn.textContent = '▶️ 等待本地音樂上傳';
+                btn.classList.remove('bg-red-600');
+                btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                return;
+            }
+            
+            // 有本地音樂時
             if (isPlaying) {
-                document.getElementById('play-btn').textContent = '⏸️ 暫停';
-                document.getElementById('play-btn').classList.remove('bg-green-600');
-                document.getElementById('play-btn').classList.add('bg-red-600');
+                btn.textContent = '⏸️ 暫停';
+                btn.classList.remove('bg-green-600', 'bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-red-600');
             } else {
-                document.getElementById('play-btn').textContent = '▶️ 開始播放';
-                document.getElementById('play-btn').classList.remove('bg-red-600');
-                document.getElementById('play-btn').classList.add('bg-green-600');
+                btn.textContent = '▶️ 繼續播放';
+                btn.classList.remove('bg-red-600', 'bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-green-600');
             }
         }
 
@@ -873,7 +904,7 @@
             `;
             container.classList.remove('hidden');
             
-            status.textContent = '✅ 已載入 Spotify 歌曲！請上傳本地音樂檔案來驅動視覺化';
+            status.textContent = '✅ Spotify 已載入！現在請上傳同一首歌的本地音樂檔案來驅動視覺化。';
             status.classList.remove('hidden');
         }
 
