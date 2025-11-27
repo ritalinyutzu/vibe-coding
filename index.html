@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>共感工作室 Pro - Spotify 版本</title>
+    <title>共感工作室 - Spotify 版本</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         #canvas-3d {
@@ -28,6 +27,7 @@
             height: 8px;
             background: #4B5563;
             border-radius: 4px;
+            width: 100%;
         }
         .control-group input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -47,40 +47,6 @@
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
         }
-        .spotify-btn {
-            background: linear-gradient(135deg, #1DB954, #1ed760);
-        }
-        .spotify-btn:hover {
-            background: linear-gradient(135deg, #1ed760, #1DB954);
-        }
-        .search-result {
-            background: rgba(31, 41, 55, 0.8);
-            border: 1px solid rgba(29, 185, 84, 0.3);
-            border-radius: 8px;
-            padding: 10px;
-            margin: 6px 0;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 12px;
-        }
-        .search-result:hover {
-            border-color: rgba(29, 185, 84, 0.8);
-            background: rgba(31, 41, 55, 1);
-        }
-        .now-playing {
-            background: rgba(29, 185, 84, 0.1);
-            border-left: 3px solid #1DB954;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: #e5e7eb;
-        }
-        .album-art {
-            width: 50px;
-            height: 50px;
-            border-radius: 4px;
-            margin-right: 10px;
-        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen antialiased">
@@ -88,110 +54,79 @@
     <div id="app" class="flex h-screen overflow-hidden">
 
         <!-- 左側控制面板 -->
-        <div class="w-full lg:w-1/3 xl:w-1/4 p-6 flex flex-col space-y-4 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+        <div class="w-full lg:w-1/3 xl:w-1/4 p-6 flex flex-col space-y-3 bg-gray-800 border-r border-gray-700 overflow-y-auto">
             
-            <header class="pb-4 border-b border-gray-700">
+            <header class="pb-3 border-b border-gray-700">
                 <h1 class="text-2xl font-extrabold text-green-400">共感工作室</h1>
-                <p class="text-xs text-gray-400 mt-1">Spotify × 音樂 × 視覺化</p>
+                <p class="text-xs text-gray-400 mt-1">音樂 × 藝術 × 視覺化</p>
             </header>
 
-            <!-- Spotify 登入區 -->
-            <div class="space-y-2" id="spotify-section">
-                <h2 class="text-lg font-semibold text-gray-200">🎵 Spotify</h2>
-                <button id="spotify-login-btn" class="spotify-btn text-white font-bold py-2 px-4 rounded-lg text-sm w-full transition">
-                    🎶 連接 Spotify
-                </button>
-                <p id="spotify-user" class="text-xs text-gray-400 hidden">✅ 已連接</p>
+            <!-- 本地音樂 -->
+            <div class="space-y-2">
+                <h2 class="text-sm font-semibold text-gray-200">🎵 本地音樂</h2>
+                <input type="file" id="music-input" accept="audio/*" class="hidden" onchange="handleMusicSelect(event)">
+                <label for="music-input" class="cursor-pointer block text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
+                    📤 上傳音樂
+                </label>
+                <p id="music-name" class="text-xs text-gray-400">未選擇</p>
+                <audio id="audio-player"></audio>
             </div>
 
-            <!-- 搜尋區 -->
-            <div class="space-y-2 pt-2 border-t border-gray-700" id="search-section" style="display: none;">
-                <h2 class="text-lg font-semibold text-gray-200">🔍 搜尋歌曲</h2>
-                <div class="flex gap-2">
-                    <input type="text" id="search-input" placeholder="搜尋歌曲..." 
-                           class="flex-1 px-3 py-2 bg-gray-700 text-white rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-400">
-                    <button id="search-btn" class="spotify-btn text-white font-bold px-4 rounded-lg text-xs">
-                        🔎
-                    </button>
-                </div>
-                <div id="search-results" class="max-h-40 overflow-y-auto"></div>
-            </div>
-
-            <!-- 正在播放 -->
-            <div class="space-y-2 pt-2 border-t border-gray-700" id="now-playing-section" style="display: none;">
-                <h2 class="text-lg font-semibold text-gray-200">🎧 正在播放</h2>
-                <div id="now-playing" class="now-playing hidden">
-                    <div class="flex items-center">
-                        <img id="track-image" class="album-art">
-                        <div class="flex-1">
-                            <p id="track-name" class="font-semibold text-green-400">-</p>
-                            <p id="track-artist" class="text-gray-400">-</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 圖片上傳區 -->
+            <!-- 圖片上傳 -->
             <div class="space-y-2 pt-2 border-t border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-200">🖼️ 上傳圖片</h2>
+                <h2 class="text-sm font-semibold text-gray-200">🖼️ 背景圖片</h2>
                 <input type="file" id="image-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
-                <label for="image-input" class="cursor-pointer block text-center spotify-btn text-white font-bold py-2 px-4 rounded-lg text-sm">
+                <label for="image-input" class="cursor-pointer block text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
                     🎨 上傳圖片
                 </label>
-                <img id="preview-image" class="hidden rounded-lg max-h-24 mx-auto">
+                <img id="preview-image" class="hidden rounded-lg max-h-20 mx-auto">
             </div>
 
-            <!-- 預設風格 -->
+            <!-- 視覺風格 -->
             <div class="space-y-2 pt-2 border-t border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-200">✨ 視覺風格</h2>
+                <h2 class="text-sm font-semibold text-gray-200">✨ 視覺風格</h2>
                 <div class="style-grid text-xs">
-                    <button class="preset-btn active bg-green-600 p-2 rounded-lg font-medium border-2 border-green-400" data-preset="neon">霓虹故障</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="liquid">流動液態</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="geometric">幾何波紋</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="particle">能量粒子</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="spectrum">頻譜柱狀</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="ripple">漣漪波動</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="spiral">旋轉螺旋</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="trail">光軌跡</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="mandelbrot">分形藝術</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="plasma">電漿效應</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="tunnel">星光隧道</button>
-                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent" data-preset="imagewave">圖片波動</button>
+                    <button class="preset-btn active bg-green-600 p-2 rounded-lg font-medium border-2 border-green-400" data-preset="neon">霓虹</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="liquid">液態</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="geometric">幾何</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="particle">粒子</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="spectrum">頻譜</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="ripple">漣漪</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="spiral">螺旋</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="trail">軌跡</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="mandelbrot">分形</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="plasma">電漿</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="tunnel">隧道</button>
+                    <button class="preset-btn bg-gray-700 p-2 rounded-lg font-medium border-2 border-transparent hover:bg-gray-600" data-preset="imagewave">圖片波</button>
                 </div>
             </div>
 
-            <!-- 參數控制 -->
+            <!-- 參數 -->
             <div class="space-y-2 pt-2 border-t border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-200">⚙️ 參數</h2>
-                
+                <h2 class="text-sm font-semibold text-gray-200">⚙️ 參數</h2>
                 <div class="control-group">
                     <label class="block text-xs font-medium text-gray-300">節拍</label>
                     <input type="range" min="1" max="100" value="75" id="range-beat">
                 </div>
-
                 <div class="control-group">
                     <label class="block text-xs font-medium text-gray-300">顏色</label>
                     <input type="range" min="1" max="100" value="45" id="range-frequency">
                 </div>
-                
                 <div class="control-group">
                     <label class="block text-xs font-medium text-gray-300">密度</label>
                     <input type="range" min="1" max="100" value="90" id="range-intensity">
                 </div>
-                
                 <div class="control-group">
                     <label class="block text-xs font-medium text-gray-300">速度</label>
                     <input type="range" min="1" max="100" value="60" id="range-speed">
                 </div>
             </div>
 
-            <!-- 播放控制 -->
-            <div class="pt-2 border-t border-gray-700" id="playback-section" style="display: none;">
-                <div class="flex gap-2">
-                    <button id="prev-btn" class="flex-1 spotify-btn text-white font-bold py-2 rounded-lg text-sm">⏮️</button>
-                    <button id="play-btn" class="flex-1 spotify-btn text-white font-bold py-2 rounded-lg text-sm">▶️</button>
-                    <button id="next-btn" class="flex-1 spotify-btn text-white font-bold py-2 rounded-lg text-sm">⏭️</button>
-                </div>
+            <!-- 播放 -->
+            <div class="pt-2 border-t border-gray-700">
+                <button id="play-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-sm transition">
+                    ▶️ 開始播放
+                </button>
             </div>
         </div>
 
@@ -206,228 +141,39 @@
     </div>
 
     <script>
-        // ═══ Spotify 配置 ═══
-        const CLIENT_ID = 'cd24ef8a4eeb4d7895464f0e0d7f5c05';
-        const REDIRECT_URI = window.location.origin + window.location.pathname;
-        const SCOPES = [
-            'streaming',
-            'user-read-private',
-            'user-read-email',
-            'user-read-playback-state',
-            'user-modify-playback-state',
-            'user-read-currently-playing'
-        ];
-
-        // ═══ 全域變數 ═══
+        // ═══ 全域設定 ═══
         const canvas3D = document.getElementById('canvas-3d');
         const canvas2D = document.getElementById('canvas-2d');
         const ctx2D = canvas2D.getContext('2d');
+        const audioPlayer = document.getElementById('audio-player');
         
         let scene, camera, renderer;
         let audioContext, analyser, dataArray;
+        let isPlaying = false;
         let currentPreset = 'neon';
         let uploadedImage = null;
-        let spotifyToken = null;
-        let spotifyPlayer = null;
-        let currentDevice = null;
 
-        // Spotify 相關 DOM
-        const loginBtn = document.getElementById('spotify-login-btn');
-        const searchSection = document.getElementById('search-section');
-        const nowPlayingSection = document.getElementById('now-playing-section');
-        const playbackSection = document.getElementById('playback-section');
-        const spotifyUserDisplay = document.getElementById('spotify-user');
+        // ═══ 事件綁定 ═══
+        document.getElementById('music-input').addEventListener('change', handleMusicSelect);
+        document.getElementById('image-input').addEventListener('change', handleImageSelect);
+        document.getElementById('play-btn').addEventListener('click', togglePlayback);
 
-        // ═══ 初始化 ═══
-        window.addEventListener('load', () => {
-            initThree();
-            setupNeon();
-            updateSceneWithImage();
-            animate();
-
-            // 檢查 URL 中是否有 token
-            const hash = window.location.hash;
-            if (hash) {
-                const token = new URLSearchParams(hash.substring(1)).get('access_token');
-                if (token) {
-                    spotifyToken = token;
-                    localStorage.setItem('spotify_token', token);
-                    window.location.hash = '';
-                    initSpotify();
-                }
-            } else {
-                spotifyToken = localStorage.getItem('spotify_token');
-                if (spotifyToken) {
-                    initSpotify();
-                }
-            }
-
-            // 登入按鈕
-            loginBtn.addEventListener('click', redirectToSpotifyAuth);
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => switchPreset(e.target.dataset.preset));
         });
 
-        // ═══ Spotify 認證 ═══
-        function redirectToSpotifyAuth() {
-            const authUrl = new URL('https://accounts.spotify.com/authorize');
-            authUrl.searchParams.append('client_id', CLIENT_ID);
-            authUrl.searchParams.append('response_type', 'token');
-            authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
-            authUrl.searchParams.append('scope', SCOPES.join(' '));
-            window.location.href = authUrl.toString();
-        }
-
-        // ═══ 初始化 Spotify ═══
-        function initSpotify() {
-            loginBtn.textContent = '✅ 已連接 Spotify';
-            loginBtn.disabled = true;
-            spotifyUserDisplay.classList.remove('hidden');
-            searchSection.style.display = 'block';
-            nowPlayingSection.style.display = 'block';
-            playbackSection.style.display = 'block';
-
-            // 初始化 Web Playback SDK
-            window.onSpotifyWebPlaybackSDKReady = () => {
-                spotifyPlayer = new Spotify.Player({
-                    name: '共感工作室',
-                    getOAuthToken: cb => { cb(spotifyToken); },
-                    volume: 0.5
-                });
-
-                spotifyPlayer.addListener('player_state_changed', state => {
-                    if (state) {
-                        const current = state.track_window.current_track;
-                        updateNowPlaying(current);
-                    }
-                });
-
-                spotifyPlayer.connect().then(success => {
-                    if (success) {
-                        console.log('Spotify Player 已連接');
-                    }
-                });
-            };
-
-            // 搜尋功能
-            document.getElementById('search-btn').addEventListener('click', searchTracks);
-            document.getElementById('search-input').addEventListener('keypress', e => {
-                if (e.key === 'Enter') searchTracks();
-            });
-
-            // 播放控制
-            document.getElementById('play-btn').addEventListener('click', togglePlay);
-            document.getElementById('next-btn').addEventListener('click', nextTrack);
-            document.getElementById('prev-btn').addEventListener('click', prevTrack);
-        }
-
-        // ═══ 搜尋歌曲 ═══
-        async function searchTracks() {
-            const query = document.getElementById('search-input').value;
-            if (!query) return;
-
-            try {
-                const response = await fetch(
-                    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=8`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${spotifyToken}`
-                        }
-                    }
-                );
-
-                const data = await response.json();
-                displaySearchResults(data.tracks.items);
-            } catch (error) {
-                console.error('搜尋失敗:', error);
+        // ═══ 音樂選擇 ═══
+        function handleMusicSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                const file = files[0];
+                document.getElementById('music-name').textContent = file.name;
+                audioPlayer.src = URL.createObjectURL(file);
+                setupAudioAnalysis();
             }
         }
 
-        // ═══ 顯示搜尋結果 ═══
-        function displaySearchResults(tracks) {
-            const resultsDiv = document.getElementById('search-results');
-            resultsDiv.innerHTML = '';
-
-            tracks.forEach(track => {
-                const div = document.createElement('div');
-                div.className = 'search-result';
-                div.innerHTML = `
-                    <p class="font-semibold text-green-400">${track.name}</p>
-                    <p class="text-gray-400">${track.artists[0].name}</p>
-                `;
-                div.addEventListener('click', () => playTrack(track.uri));
-                resultsDiv.appendChild(div);
-            });
-        }
-
-        // ═══ 播放歌曲 ═══
-        async function playTrack(uri) {
-            if (!spotifyPlayer) return;
-
-            try {
-                await fetch(`https://api.spotify.com/v1/me/player/play`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${spotifyToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ uris: [uri] })
-                });
-
-                // 更新正在播放
-                const trackId = uri.split(':')[2];
-                const response = await fetch(
-                    `https://api.spotify.com/v1/tracks/${trackId}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${spotifyToken}`
-                        }
-                    }
-                );
-                const track = await response.json();
-                updateNowPlaying(track);
-            } catch (error) {
-                console.error('播放失敗:', error);
-            }
-        }
-
-        // ═══ 更新正在播放 ═══
-        function updateNowPlaying(track) {
-            if (!track) return;
-
-            const nowPlayingDiv = document.getElementById('now-playing');
-            const trackName = document.getElementById('track-name');
-            const trackArtist = document.getElementById('track-artist');
-            const trackImage = document.getElementById('track-image');
-
-            trackName.textContent = track.name;
-            trackArtist.textContent = track.artists?.[0]?.name || '-';
-
-            if (track.album?.images?.[0]) {
-                trackImage.src = track.album.images[0].url;
-            }
-
-            nowPlayingDiv.classList.remove('hidden');
-        }
-
-        // ═══ 播放控制 ═══
-        function togglePlay() {
-            if (spotifyPlayer) {
-                spotifyPlayer.togglePlay();
-            }
-        }
-
-        function nextTrack() {
-            if (spotifyPlayer) {
-                spotifyPlayer.nextTrack();
-            }
-        }
-
-        function prevTrack() {
-            if (spotifyPlayer) {
-                spotifyPlayer.previousTrack();
-            }
-        }
-
-        // ═══ 圖片上傳 ═══
+        // ═══ 圖片選擇 ═══
         function handleImageSelect(e) {
             const files = e.target.files;
             if (files.length > 0) {
@@ -446,36 +192,76 @@
             }
         }
 
-        function updateSceneWithImage() {
-            if (!uploadedImage) return;
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = canvas3D.clientWidth;
-            canvas.height = canvas3D.clientHeight;
-            const ctx = canvas.getContext('2d');
-            
-            const imgAspect = uploadedImage.width / uploadedImage.height;
-            const canvasAspect = canvas.width / canvas.height;
-            
-            let drawWidth, drawHeight, drawX, drawY;
-            
-            if (imgAspect > canvasAspect) {
-                drawHeight = canvas.height;
-                drawWidth = drawHeight * imgAspect;
-                drawX = (canvas.width - drawWidth) / 2;
-                drawY = 0;
-            } else {
-                drawWidth = canvas.width;
-                drawHeight = drawWidth / imgAspect;
-                drawX = 0;
-                drawY = (canvas.height - drawHeight) / 2;
+        // ═══ 音訊分析 ═══
+        function setupAudioAnalysis() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const source = audioContext.createMediaElementSource(audioPlayer);
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
             }
+        }
+
+        function getAudioData() {
+            if (!analyser || !isPlaying) {
+                return { beat: 0, mid: 0, high: 0, intensity: 0, data: new Uint8Array(128) };
+            }
+
+            analyser.getByteFrequencyData(dataArray);
+            let beat = 0, mid = 0, high = 0, intensity = 0;
             
-            ctx.globalAlpha = 0.3;
-            ctx.drawImage(uploadedImage, drawX, drawY, drawWidth, drawHeight);
+            const lowEnd = Math.floor(dataArray.length * 0.15);
+            const midEnd = Math.floor(dataArray.length * 0.4);
             
-            const texture = new THREE.CanvasTexture(canvas);
-            scene.background = texture;
+            for (let i = 0; i < lowEnd; i++) beat += dataArray[i];
+            beat = beat / lowEnd / 255;
+
+            for (let i = lowEnd; i < midEnd; i++) mid += dataArray[i];
+            mid = mid / (midEnd - lowEnd) / 255;
+
+            for (let i = midEnd; i < dataArray.length; i++) high += dataArray[i];
+            high = high / (dataArray.length - midEnd) / 255;
+
+            for (let i = 0; i < dataArray.length; i++) intensity += dataArray[i];
+            intensity = intensity / dataArray.length / 255;
+
+            return { beat, mid, high, intensity, data: dataArray };
+        }
+
+        // ═══ 播放控制 ═══
+        function togglePlayback() {
+            if (!audioPlayer.src) {
+                document.getElementById('play-btn').textContent = "❌ 請先上傳音樂";
+                setTimeout(() => updatePlayButtonState(), 1500);
+                return;
+            }
+
+            if (isPlaying) {
+                audioPlayer.pause();
+                isPlaying = false;
+            } else {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                audioPlayer.play();
+                isPlaying = true;
+            }
+            updatePlayButtonState();
+        }
+
+        function updatePlayButtonState() {
+            if (isPlaying) {
+                document.getElementById('play-btn').textContent = '⏸️ 暫停';
+                document.getElementById('play-btn').classList.remove('bg-green-600');
+                document.getElementById('play-btn').classList.add('bg-red-600');
+            } else {
+                document.getElementById('play-btn').textContent = '▶️ 開始播放';
+                document.getElementById('play-btn').classList.remove('bg-red-600');
+                document.getElementById('play-btn').classList.add('bg-green-600');
+            }
         }
 
         // ═══ Three.js 初始化 ═══
@@ -512,12 +298,19 @@
 
             canvas2D.width = canvas3D.clientWidth;
             canvas2D.height = canvas3D.clientHeight;
-
-            // 風格切換
-            document.querySelectorAll('.preset-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => switchPreset(e.target.dataset.preset));
-            });
         }
+
+        // ═══ 風格初始化 ═══
+        const presetSetups = {
+            neon: setupNeon, liquid: setupLiquid, geometric: setupGeometric, particle: setupParticle,
+            spectrum: setupSpectrum, ripple: setupRipple, spiral: setupSpiral, trail: setupTrail, tunnel: setupTunnel
+        };
+
+        const presetUpdates = {
+            neon: updateNeon, liquid: updateLiquid, geometric: updateGeometric, particle: updateParticle,
+            spectrum: updateSpectrum, ripple: updateRipple, spiral: updateSpiral, trail: updateTrail, tunnel: updateTunnel,
+            mandelbrot: updateMandelbrot, plasma: updatePlasma, imagewave: updateImageWave
+        };
 
         function switchPreset(preset) {
             currentPreset = preset;
@@ -530,9 +323,46 @@
             const is3D = !['mandelbrot', 'plasma', 'imagewave'].includes(preset);
             canvas3D.style.display = is3D ? 'block' : 'none';
             canvas2D.style.display = is3D ? 'none' : 'block';
+            
+            if (presetSetups[preset]) {
+                presetSetups[preset]();
+                if (is3D) updateSceneWithImage();
+            }
         }
 
-        // ═══ 簡化版視覺化（核心風格只保留關鍵函數） ═══
+        function updateSceneWithImage() {
+            if (!uploadedImage) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas3D.clientWidth;
+            canvas.height = canvas3D.clientHeight;
+            const ctx = canvas.getContext('2d');
+            
+            const imgAspect = uploadedImage.width / uploadedImage.height;
+            const canvasAspect = canvas.width / canvas.height;
+            
+            let drawWidth, drawHeight, drawX, drawY;
+            if (imgAspect > canvasAspect) {
+                drawHeight = canvas.height;
+                drawWidth = drawHeight * imgAspect;
+                drawX = (canvas.width - drawWidth) / 2;
+                drawY = 0;
+            } else {
+                drawWidth = canvas.width;
+                drawHeight = drawWidth / imgAspect;
+                drawX = 0;
+                drawY = (canvas.height - drawHeight) / 2;
+            }
+            
+            ctx.globalAlpha = 0.3;
+            ctx.drawImage(uploadedImage, drawX, drawY, drawWidth, drawHeight);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            scene.background = texture;
+        }
+
+        // ═══ 所有視覺風格 ═══
+        
+        // 霓虹
         function setupNeon() {
             scene.clear();
             for (let i = 0; i < 8; i++) {
@@ -547,7 +377,6 @@
                 scene.add(line);
             }
         }
-
         function updateNeon(audioData) {
             scene.children.forEach((line, i) => {
                 const hue = (audioData.high + i * 0.1 + Date.now() / 10000) % 1;
@@ -555,31 +384,356 @@
             });
         }
 
-        function getAudioData() {
-            // 模擬音訊數據（實際應使用 Spotify 的 audio features）
-            return {
-                beat: Math.random() * 0.5,
-                mid: Math.random() * 0.5,
-                high: Math.random() * 0.5,
-                intensity: Math.random() * 0.5,
-                data: new Uint8Array(128).fill(128)
-            };
+        // 液態
+        let liquidMesh;
+        function setupLiquid() {
+            scene.clear();
+            const geo = new THREE.IcosahedronGeometry(1, 6);
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0x00ffff, emissive: 0x0088ff, emissiveIntensity: 0.8
+            });
+            liquidMesh = new THREE.Mesh(geo, mat);
+            scene.add(liquidMesh);
+        }
+        function updateLiquid(audioData) {
+            if (liquidMesh) {
+                liquidMesh.rotation.x += audioData.beat * 0.05;
+                liquidMesh.rotation.y += audioData.mid * 0.05;
+                liquidMesh.scale.setScalar(1.2 + audioData.beat * 0.5);
+                const hue = (audioData.mid + Date.now() / 3000) % 1;
+                liquidMesh.material.color.setHSL(hue, 1, 0.5);
+                liquidMesh.material.emissiveIntensity = 0.5 + audioData.intensity * 0.8;
+            }
         }
 
-        // ═══ 動畫循環 ═══
-        function animate() {
-            requestAnimationFrame(animate);
+        // 幾何
+        function setupGeometric() {
+            scene.clear();
+            for (let i = 0; i < 12; i++) {
+                const geo = new THREE.OctahedronGeometry(0.3, 3);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color().setHSL(i / 12, 1, 0.6),
+                    emissive: new THREE.Color().setHSL(i / 12, 1, 0.3),
+                    emissiveIntensity: 0.8
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                const angle = i / 12 * Math.PI * 2;
+                mesh.position.x = Math.cos(angle) * 1.5;
+                mesh.position.y = Math.sin(angle) * 1.5;
+                mesh.userData.angle = angle;
+                mesh.userData.baseRadius = 1.5;
+                mesh.userData.hueOffset = i / 12;
+                scene.add(mesh);
+            }
+        }
+        function updateGeometric(audioData) {
+            scene.children.forEach((mesh, i) => {
+                const radius = mesh.userData.baseRadius + audioData.beat * 0.8;
+                mesh.position.x = Math.cos(mesh.userData.angle) * radius;
+                mesh.position.y = Math.sin(mesh.userData.angle) * radius;
+                mesh.rotation.x += audioData.high * 0.08;
+                mesh.rotation.y += audioData.high * 0.08;
+                const hue = (mesh.userData.hueOffset + audioData.high * 0.5 + Date.now() / 4000) % 1;
+                mesh.material.color.setHSL(hue, 1, 0.6);
+                mesh.material.emissiveIntensity = 0.6 + audioData.beat * 0.6;
+            });
+        }
 
-            const audioData = getAudioData();
+        // 粒子
+        let particleSystem;
+        function setupParticle() {
+            scene.clear();
+            const count = 1500;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            
+            for (let i = 0; i < count; i++) {
+                pos[i * 3] = (Math.random() - 0.5) * 6;
+                pos[i * 3 + 1] = (Math.random() - 0.5) * 6;
+                pos[i * 3 + 2] = (Math.random() - 0.5) * 6;
+                const hue = Math.random();
+                const rgb = hslToRgb(hue, 1, 0.6);
+                colors[i * 3] = rgb[0] / 255;
+                colors[i * 3 + 1] = rgb[1] / 255;
+                colors[i * 3 + 2] = rgb[2] / 255;
+            }
+            
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.04, vertexColors: true });
+            particleSystem = new THREE.Points(geo, mat);
+            scene.add(particleSystem);
+        }
+        function updateParticle(audioData) {
+            if (particleSystem) {
+                const pos = particleSystem.geometry.attributes.position.array;
+                for (let i = 0; i < pos.length; i += 3) {
+                    pos[i] += (Math.random() - 0.5) * audioData.intensity * 0.2;
+                    pos[i + 1] += (Math.random() - 0.5) * audioData.beat * 0.15;
+                    if (Math.abs(pos[i]) > 3) pos[i] = (Math.random() - 0.5) * 6;
+                    if (Math.abs(pos[i + 1]) > 3) pos[i + 1] = (Math.random() - 0.5) * 6;
+                }
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+                particleSystem.rotation.x += audioData.beat * 0.01;
+                particleSystem.rotation.y += audioData.beat * 0.01;
+            }
+        }
 
-            if (currentPreset === 'neon') {
-                updateNeon(audioData);
+        // 頻譜
+        function setupSpectrum() {
+            scene.clear();
+            for (let i = 0; i < 32; i++) {
+                const geo = new THREE.BoxGeometry(0.08, 0.5, 0.08);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color().setHSL(i / 32, 1, 0.6),
+                    emissive: new THREE.Color().setHSL(i / 32, 1, 0.35),
+                    emissiveIntensity: 0.9
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                const angle = i / 32 * Math.PI * 2;
+                mesh.position.x = Math.cos(angle) * 1.5;
+                mesh.position.z = Math.sin(angle) * 1.5;
+                mesh.userData.spectrumIndex = i;
+                mesh.userData.hueOffset = i / 32;
+                scene.add(mesh);
+            }
+        }
+        function updateSpectrum(audioData) {
+            scene.children.forEach((mesh) => {
+                const idx = Math.floor(mesh.userData.spectrumIndex * audioData.data.length / 32);
+                const val = audioData.data[idx] / 255;
+                mesh.scale.y = 0.5 + val * 1.5;
+                const hue = (mesh.userData.hueOffset + Date.now() / 5000) % 1;
+                mesh.material.color.setHSL(hue, 1, 0.5 + val * 0.3);
+                mesh.material.emissiveIntensity = 0.6 + val * 0.6;
+            });
+        }
+
+        // 漣漪
+        let rippleMesh;
+        function setupRipple() {
+            scene.clear();
+            const geo = new THREE.PlaneGeometry(4, 4, 64, 64);
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.6, wireframe: true
+            });
+            rippleMesh = new THREE.Mesh(geo, mat);
+            rippleMesh.userData.originalPos = new Float32Array(geo.attributes.position.array);
+            scene.add(rippleMesh);
+        }
+        function updateRipple(audioData) {
+            if (rippleMesh) {
+                const pos = rippleMesh.geometry.attributes.position.array;
+                const orig = rippleMesh.userData.originalPos;
+                const time = Date.now() * 0.001;
+                
+                for (let i = 2; i < pos.length; i += 3) {
+                    const x = orig[i - 2];
+                    const y = orig[i - 1];
+                    const dist = Math.sqrt(x * x + y * y);
+                    pos[i] = Math.sin(dist * 10 - time * 5) * (0.3 + audioData.beat * 0.8);
+                }
+                rippleMesh.geometry.attributes.position.needsUpdate = true;
+                const hue = (audioData.beat * 0.5 + Date.now() / 4000) % 1;
+                rippleMesh.material.color.setHSL(hue, 1, 0.5);
+                rippleMesh.material.emissiveIntensity = 0.5 + audioData.intensity * 0.5;
+            }
+        }
+
+        // 螺旋
+        function setupSpiral() {
+            scene.clear();
+            for (let layer = 0; layer < 5; layer++) {
+                const count = 20 + layer * 5;
+                for (let i = 0; i < count; i++) {
+                    const geo = new THREE.SphereGeometry(0.15, 8, 8);
+                    const hue = (layer / 5 + i / count) % 1;
+                    const mat = new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(hue, 1, 0.6),
+                        emissive: new THREE.Color().setHSL(hue, 1, 0.35),
+                        emissiveIntensity: 0.8
+                    });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    const angle = i / count * Math.PI * 2;
+                    const radius = 0.5 + layer * 0.4;
+                    mesh.position.x = Math.cos(angle) * radius;
+                    mesh.position.y = Math.sin(angle) * radius;
+                    mesh.position.z = (layer - 2) * 0.5;
+                    mesh.userData.layer = layer;
+                    mesh.userData.hueOffset = hue;
+                    scene.add(mesh);
+                }
+            }
+        }
+        function updateSpiral(audioData) {
+            scene.children.forEach((mesh) => {
+                mesh.rotation.x += audioData.high * 0.05;
+                mesh.rotation.y += audioData.beat * 0.05;
+                mesh.scale.setScalar(1 + audioData.beat * 0.3);
+                const hue = (mesh.userData.hueOffset + Date.now() / 3000 + audioData.intensity * 0.5) % 1;
+                mesh.material.color.setHSL(hue, 1, 0.6);
+                mesh.material.emissiveIntensity = 0.6 + audioData.beat * 0.6;
+            });
+        }
+
+        // 軌跡
+        function setupTrail() {
+            scene.clear();
+            for (let i = 0; i < 5; i++) {
+                const curve = new THREE.LineCurve3(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, 0));
+                const geo = new THREE.TubeGeometry(curve, 20, 0.1, 8);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color().setHSL(i / 5, 1, 0.6),
+                    emissive: new THREE.Color().setHSL(i / 5, 1, 0.35),
+                    emissiveIntensity: 0.9
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.z = i / 5 * Math.PI * 2;
+                mesh.userData.index = i;
+                scene.add(mesh);
+            }
+        }
+        function updateTrail(audioData) {
+            scene.children.forEach((mesh, i) => {
+                mesh.rotation.z += audioData.beat * 0.05;
+                mesh.scale.setScalar(1 + audioData.beat * 0.4);
+                const hue = (i / 5 + Date.now() / 3000 + audioData.beat * 0.3) % 1;
+                mesh.material.color.setHSL(hue, 1, 0.6);
+                mesh.material.emissiveIntensity = 0.7 + audioData.intensity * 0.5;
+            });
+        }
+
+        // 隧道
+        function setupTunnel() {
+            scene.clear();
+            for (let layer = 0; layer < 10; layer++) {
+                const count = 16;
+                for (let i = 0; i < count; i++) {
+                    const geo = new THREE.SphereGeometry(0.1, 8, 8);
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: new THREE.Color().setHSL(layer / 10 + i / count, 1, 0.6),
+                        emissive: new THREE.Color().setHSL(layer / 10 + i / count, 1, 0.35),
+                        emissiveIntensity: 0.9
+                    });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    const angle = i / count * Math.PI * 2;
+                    const radius = 0.3 + layer * 0.25;
+                    mesh.position.x = Math.cos(angle) * radius;
+                    mesh.position.y = Math.sin(angle) * radius;
+                    mesh.position.z = -3 + layer * 0.7;
+                    mesh.userData.layer = layer;
+                    scene.add(mesh);
+                }
+            }
+        }
+        function updateTunnel(audioData) {
+            scene.children.forEach((mesh) => {
+                mesh.position.z += 0.08 + audioData.beat * 0.05;
+                if (mesh.position.z > 1) {
+                    mesh.position.z = -3 + mesh.userData.layer * 0.7;
+                }
+                mesh.scale.setScalar(1 + audioData.beat * 0.4 + audioData.intensity * 0.2);
+            });
+        }
+
+        // Mandelbrot
+        function updateMandelbrot(audioData) {
+            ctx2D.fillStyle = '#0a0a0a';
+            ctx2D.fillRect(0, 0, canvas2D.width, canvas2D.height);
+
+            const w = canvas2D.width;
+            const h = canvas2D.height;
+            const scale = 0.5 + audioData.intensity * 2;
+            const centerX = 0.5 + audioData.high * 0.3;
+
+            for (let x = 0; x < w; x += 4) {
+                for (let y = 0; y < h; y += 4) {
+                    const cr = (x / w - 0.5) / scale + centerX;
+                    const ci = (y / h - 0.5) / scale + 0.5;
+
+                    let real = cr, imag = ci;
+                    let iter = 0;
+                    for (let i = 0; i < 50; i++) {
+                        const r2 = real * real, i2 = imag * imag;
+                        if (r2 + i2 > 4) break;
+                        const temp = r2 - i2 + cr;
+                        imag = 2 * real * imag + ci;
+                        real = temp;
+                        iter++;
+                    }
+                    const hue = (iter / 50 + Date.now() / 5000) % 1;
+                    const rgb = hslToRgb(hue, 1, 0.5);
+                    ctx2D.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+                    ctx2D.fillRect(x, y, 4, 4);
+                }
+            }
+        }
+
+        // 電漿
+        function updatePlasma(audioData) {
+            ctx2D.fillStyle = '#0a0a0a';
+            ctx2D.fillRect(0, 0, canvas2D.width, canvas2D.height);
+
+            const time = Date.now() * 0.001;
+            const w = canvas2D.width;
+            const h = canvas2D.height;
+
+            for (let x = 0; x < w; x += 4) {
+                for (let y = 0; y < h; y += 4) {
+                    const v = Math.sin((x + time * 100) * 0.01) +
+                             Math.sin((y + time * 50) * 0.01) +
+                             Math.sin(Math.sqrt(x * x + y * y) * 0.01 + time * 50) * audioData.beat;
+
+                    const hue = (v * 0.3 + audioData.high + Date.now() / 5000) % 1;
+                    const rgb = hslToRgb(hue, 1, 0.5);
+                    ctx2D.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+                    ctx2D.fillRect(x, y, 4, 4);
+                }
+            }
+        }
+
+        // 圖片波動
+        function updateImageWave(audioData) {
+            ctx2D.fillStyle = 'rgba(10, 10, 10, 0.2)';
+            ctx2D.fillRect(0, 0, canvas2D.width, canvas2D.height);
+
+            if (!uploadedImage) {
+                ctx2D.fillStyle = '#666';
+                ctx2D.font = '18px Arial';
+                ctx2D.textAlign = 'center';
+                ctx2D.fillText('請上傳圖片', canvas2D.width / 2, canvas2D.height / 2);
+                return;
             }
 
-            renderer.render(scene, camera);
+            const w = canvas2D.width;
+            const h = canvas2D.height;
+            const scale = Math.min(w / uploadedImage.width, h / uploadedImage.height) * 0.85;
+            const x = (w - uploadedImage.width * scale) / 2;
+            const y = (h - uploadedImage.height * scale) / 2;
+
+            ctx2D.globalAlpha = 0.9 + audioData.intensity * 0.1;
+            ctx2D.drawImage(uploadedImage, x, y, uploadedImage.width * scale, uploadedImage.height * scale);
+            ctx2D.globalAlpha = 1;
+
+            const waveCount = 2 + Math.floor(audioData.intensity * 4);
+            for (let waveIdx = 0; waveIdx < waveCount; waveIdx++) {
+                const waveOffset = waveIdx * 0.4;
+                ctx2D.strokeStyle = `hsl(${(audioData.beat * 360 + audioData.high * 180 + waveIdx * 60) % 360}, 100%, ${60 + audioData.intensity * 20}%)`;
+                ctx2D.lineWidth = 1 + audioData.beat * 3;
+                ctx2D.globalAlpha = 0.7 - waveIdx * 0.15;
+                
+                ctx2D.beginPath();
+                for (let px = -50; px <= w + 50; px += 5) {
+                    const py = h / 2 + Math.sin((px * 0.008 + Date.now() * 0.0008 + waveOffset) * 8) * audioData.beat * 120;
+                    px === -50 ? ctx2D.moveTo(px, py) : ctx2D.lineTo(px, py);
+                }
+                ctx2D.stroke();
+            }
+            ctx2D.globalAlpha = 1;
         }
 
-        // ═══ HSL 轉 RGB ═══
+        // ═══ 色彩轉換 ═══
         function hslToRgb(h, s, l) {
             let r, g, b;
             if (s === 0) {
@@ -601,6 +755,30 @@
             }
             return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
         }
+
+        // ═══ 動畫循環 ═══
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const audioData = getAudioData();
+
+            if (presetUpdates[currentPreset]) {
+                presetUpdates[currentPreset](audioData);
+            }
+
+            if (!['mandelbrot', 'plasma', 'imagewave'].includes(currentPreset)) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        // ═══ 初始化 ═══
+        window.addEventListener('load', () => {
+            initThree();
+            setupNeon();
+            updateSceneWithImage();
+            animate();
+            updatePlayButtonState();
+        });
     </script>
 </body>
 </html>
