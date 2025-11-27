@@ -330,19 +330,7 @@ MIT License - 詳見 [LICENSE](LICENSE) 檔案
 - [ ] **AI 生成** - 基於音樂 AI 生成視覺效果
 - [ ] **移動應用** - React Native 版本
 
----
 
-## 📞 聯絡方式
-
-- 📧 Email: your.email@example.com
-- 💬 GitHub Issues: 報告 Bug 或提交功能請求
-- 🐦 Twitter: @yourtwitter
-
----
-
-## ❤️ 鳴謝
-
-感謝所有為此專案貢獻的人，以及 Three.js、Tailwind CSS 等開源專案。
 
 **享受音樂視覺化吧！** 🎨✨🎵
 
